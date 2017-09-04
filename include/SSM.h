@@ -3,7 +3,7 @@
 #include <vector>
 #include <list>
 #include <cassert>
-#include "ThreadSafeQueue.h"
+#include "./Helpers.h"
 #include <unordered_set>
 #include <algorithm>
 #include <set>
@@ -20,9 +20,8 @@
 
 template <typename Symbol_t, typename StateId_t = int>
 class SSM{
-	std::random_device rd;
-	std::mt19937 gen;
-	std::uniform_real_distribution<> dis;
+	Helpers::Random random;
+	Helpers::SafeQueue<Symbol_t> inputQueue;
 	class State{
 		StateId_t thisId;
 		std::map<Symbol_t, std::vector<std::map<StateId_t,double>> > nextStates;
@@ -43,7 +42,6 @@ class SSM{
 	std::vector<double> weights;
 	std::map<transition, std::function<void(void)> > transitionSideEffects;
 
-	PublisherSubscriber<Symbol_t> inputQueue;
 
 	StateId_t startState;
 	StateId_t currentState; 
@@ -83,12 +81,12 @@ void SSM<Symbol_t, StateId_t>::advanceState(const Symbol_t input, const SSM<Symb
 	typedef const std::vector<std::map<StateId_t, double> >& refType;
 	transition trans;
  	refType outs = (*states.find(currentState)).getNextStates().at(input);
-	double random = dis(gen);
+	double rand = random();
 	double acc = 0;
 	for(auto outS : outs){
 		for(auto out : outS){
 			acc+= out.second/100;
-			if(acc >= random){
+			if(acc >= rand){
 				currentState = out.first;
 			}
 		}
@@ -148,14 +146,13 @@ void SSM<Symbol_t, StateId_t>::addTransition (StateId_t start_, Symbol_t input, 
 }
 
 template<typename Symbol_t, typename StateId_t>
-SSM<Symbol_t, StateId_t>::SSM(std::vector<Symbol_t> alpha, StateId_t start, Symbol_t empty){
+SSM<Symbol_t, StateId_t>::SSM(std::vector<Symbol_t> alpha, StateId_t start, Symbol_t empty) : random(0,1){
     if ((find(alpha.begin(), alpha.end(), empty) != alpha.end()))
 		throw(std::runtime_error("Error, empty string is part of the alphabet"));
 	alphabet = alpha;	
 	emptyString = empty;
 	addState(start);
 	currentState = start;
-	gen.seed(rd());
 }
 
 template<typename Symbol_t, typename StateId_t>
@@ -198,7 +195,7 @@ void SSM<Symbol_t, StateId_t>::verify(){
 			for(auto output : input.second){
 				for(auto IdAndProb : output){
 					acc += IdAndProb.second;
-				}
+				} 
 			}
 			if(acc > 100.0){
 				std::strstream stream;
